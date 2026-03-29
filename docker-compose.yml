@@ -1,0 +1,9 @@
+services:
+  lantern:
+    build: .
+    pid: host
+    ports:
+      - "8282:80"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    restart: unless-stopped
