@@ -55,19 +55,21 @@ function useSpringValue(target: number, duration: number) {
         progress < 0.5
           ? 4 * progress * progress * progress
           : 1 - Math.pow(-2 * progress + 2, 3) / 2;
-      const current = startRef.current.from + (startRef.current.to - startRef.current.from) * ease;
+      const current =
+        startRef.current.from + (startRef.current.to - startRef.current.from) * ease;
       setDisplay(current);
       if (progress < 1) animRef.current = requestAnimationFrame(animate);
     };
 
     animRef.current = requestAnimationFrame(animate);
-    return () => { if (animRef.current) cancelAnimationFrame(animRef.current); };
+    return () => {
+      if (animRef.current) cancelAnimationFrame(animRef.current);
+    };
   }, [target, duration]);
 
   return display;
 }
 
-// Parse "#rrggbb" → [r, g, b]
 function hexToRgb(hex: string): [number, number, number] {
   const h = hex.replace("#", "");
   return [
@@ -77,15 +79,17 @@ function hexToRgb(hex: string): [number, number, number] {
   ];
 }
 
-// Interpolate between two [r,g,b] colors
-function lerpColor(a: [number, number, number], b: [number, number, number], t: number): string {
+function lerpColor(
+  a: [number, number, number],
+  b: [number, number, number],
+  t: number
+): string {
   const r = Math.round(a[0] + (b[0] - a[0]) * t);
   const g = Math.round(a[1] + (b[1] - a[1]) * t);
   const b2 = Math.round(a[2] + (b[2] - a[2]) * t);
   return `rgb(${r},${g},${b2})`;
 }
 
-// Get color at position 0–1 across start→mid→end
 function gradientColor(
   t: number,
   start: string,
@@ -99,25 +103,46 @@ function gradientColor(
   return lerpColor(m, e, (t - 0.5) / 0.5);
 }
 
-// Build an SVG arc path
-function describeArc(
+// Instead of individual arc paths, we use a single SVG approach:
+// draw the ring as a filled shape using clipPath so there are zero gaps.
+function buildRingPath(
   cx: number,
   cy: number,
-  r: number,
-  startAngle: number,
-  endAngle: number
+  outerR: number,
+  innerR: number,
+  startAngleDeg: number,
+  endAngleDeg: number
 ): string {
-  const toRad = (deg: number) => (deg * Math.PI) / 180;
-  const x1 = cx + r * Math.cos(toRad(startAngle));
-  const y1 = cy + r * Math.sin(toRad(startAngle));
-  const x2 = cx + r * Math.cos(toRad(endAngle));
-  const y2 = cy + r * Math.sin(toRad(endAngle));
-  const largeArc = endAngle - startAngle > 180 ? 1 : 0;
-  return `M ${x1} ${y1} A ${r} ${r} 0 ${largeArc} 1 ${x2} ${y2}`;
+  const toRad = (d: number) => (d * Math.PI) / 180;
+
+  // Clamp to just under 360 to avoid SVG arc edge case
+  const sweep = Math.min(endAngleDeg - startAngleDeg, 359.999);
+  const endAngle = startAngleDeg + sweep;
+
+  const s = toRad(startAngleDeg);
+  const e = toRad(endAngle);
+  const largeArc = sweep > 180 ? 1 : 0;
+
+  const ox1 = cx + outerR * Math.cos(s);
+  const oy1 = cy + outerR * Math.sin(s);
+  const ox2 = cx + outerR * Math.cos(e);
+  const oy2 = cy + outerR * Math.sin(e);
+
+  const ix1 = cx + innerR * Math.cos(e);
+  const iy1 = cy + innerR * Math.sin(e);
+  const ix2 = cx + innerR * Math.cos(s);
+  const iy2 = cy + innerR * Math.sin(s);
+
+  return [
+    `M ${ox1} ${oy1}`,
+    `A ${outerR} ${outerR} 0 ${largeArc} 1 ${ox2} ${oy2}`,
+    `L ${ix1} ${iy1}`,
+    `A ${innerR} ${innerR} 0 ${largeArc} 0 ${ix2} ${iy2}`,
+    `Z`,
+  ].join(" ");
 }
 
-// How many segments to draw (more = smoother gradient)
-const SEGMENTS = 120;
+const SEGMENTS = 200;
 
 export function DonutStatCard({
   glancesUrl,
@@ -130,8 +155,8 @@ export function DonutStatCard({
   style,
   staticValue,
   emptyColor = "rgba(255,255,255,0.06)",
-  innerRadius = 32,
-  outerRadius = 44,
+  innerRadius = 10,
+  outerRadius = 60,
   showValue = true,
   gradientStart = "#2dd4bf",
   gradientMid = "#facc15",
@@ -145,8 +170,6 @@ export function DonutStatCard({
   const chartSize = outerRadius * 2 + 10;
   const cx = chartSize / 2;
   const cy = chartSize / 2;
-  const strokeWidth = outerRadius - innerRadius;
-  const arcRadius = (outerRadius + innerRadius) / 2;
 
   useEffect(() => {
     if (staticValue !== undefined) {
@@ -187,22 +210,12 @@ export function DonutStatCard({
     );
   }
 
-  // Total degrees filled
+  const startAngleDeg = -90;
   const filledDeg = (Math.min(animatedValue, 100) / 100) * 360;
-
-  // Build gradient arc segments (each small segment = 360/SEGMENTS degrees)
   const segmentDeg = 360 / SEGMENTS;
 
-  // Start at top (−90°) going clockwise
-  const startAngleDeg = -90;
-
-  const gradientSegments = Array.from({ length: SEGMENTS }, (_, i) => {
-    const segStart = startAngleDeg + i * segmentDeg;
-    const segEnd = segStart + segmentDeg;
-    const t = i / (SEGMENTS - 1); // 0 at top, 1 at full circle
-    const color = gradientColor(t, gradientStart, gradientMid, gradientEnd);
-    return { segStart, segEnd, color };
-  });
+  // Full background ring path
+  const bgPath = buildRingPath(cx, cy, outerRadius, innerRadius, startAngleDeg, startAngleDeg + 360);
 
   return (
     <div style={{ ...styles.wrapper, ...style }} className={className}>
@@ -210,50 +223,30 @@ export function DonutStatCard({
         <svg width={chartSize} height={chartSize}>
 
           {/* ── Background full ring ── */}
-          <circle
-            cx={cx}
-            cy={cy}
-            r={arcRadius}
-            fill="none"
-            stroke={emptyColor}
-            strokeWidth={strokeWidth}
-          />
+          <path d={bgPath} fill={loading ? "rgba(255,255,255,0.08)" : emptyColor} />
 
-          {/* ── Gradient arc: only draw segments within the filled angle ── */}
-          {!loading && gradientSegments.map(({ segStart, segEnd, color }, i) => {
-            const segStartRel = segStart - startAngleDeg; // 0–360
-            const segEndRel = segEnd - startAngleDeg;
+          {/* ── Gradient filled segments ── */}
+          {!loading &&
+            Array.from({ length: SEGMENTS }, (_, i) => {
+              const segStartRel = i * segmentDeg;       // 0–360
+              const segEndRel = segStartRel + segmentDeg;
 
-            // Skip segments beyond filled amount
-            if (segStartRel >= filledDeg) return null;
+              // Skip entirely if this segment hasn't started yet
+              if (segStartRel >= filledDeg) return null;
 
-            // Clip last segment if partially filled
-            const clippedEnd = Math.min(segEndRel, filledDeg);
-            const clippedEndAngle = startAngleDeg + clippedEnd;
+              // Clip the last partial segment exactly
+              const clippedEndRel = Math.min(segEndRel, filledDeg);
 
-            return (
-              <path
-                key={i}
-                d={describeArc(cx, cy, arcRadius, segStart, clippedEndAngle)}
-                fill="none"
-                stroke={color}
-                strokeWidth={strokeWidth}
-                strokeLinecap="butt"
-              />
-            );
-          })}
+              const segStartAbs = startAngleDeg + segStartRel;
+              // Add tiny 0.5° overdraw so adjacent filled segments overlap, killing gaps
+              const segEndAbs = startAngleDeg + clippedEndRel + 0.5;
 
-          {/* ── Loading state ── */}
-          {loading && (
-            <circle
-              cx={cx}
-              cy={cy}
-              r={arcRadius}
-              fill="none"
-              stroke="rgba(255,255,255,0.08)"
-              strokeWidth={strokeWidth}
-            />
-          )}
+              const t = i / SEGMENTS;
+              const color = gradientColor(t, gradientStart, gradientMid, gradientEnd);
+              const d = buildRingPath(cx, cy, outerRadius, innerRadius, segStartAbs, segEndAbs);
+
+              return <path key={i} d={d} fill={color} />;
+            })}
         </svg>
 
         {showValue && (
@@ -285,26 +278,4 @@ const styles: Record<string, React.CSSProperties> = {
     left: 0,
     right: 0,
     bottom: 0,
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    fontSize: "0.85em",
-    fontWeight: 600,
-    pointerEvents: "none",
-  },
-  loadingDots: {
-    opacity: 0.3,
-    fontSize: "1.2em",
-    letterSpacing: "0.1em",
-  },
-  label: {
-    fontSize: "0.75em",
-    opacity: 0.55,
-    textTransform: "uppercase",
-    letterSpacing: "0.08em",
-  },
-  error: {
-    color: "#f87171",
-    fontSize: "0.75em",
-  },
-};
+    display
