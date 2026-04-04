@@ -16,6 +16,7 @@ interface DonutStatCardProps {
   innerRadius?: number;
   outerRadius?: number;
   size?: number;
+  showValue?: boolean; // 👈 new
 }
 
 function extractValue(data: any, dataKey: string): number {
@@ -89,12 +90,16 @@ export function DonutStatCard({
   innerRadius = 32,
   outerRadius = 44,
   size = 100,
+  showValue = true, // 👈 new
 }: DonutStatCardProps) {
   const [value, setValue] = useState<number>(staticValue ?? 0);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState<boolean>(staticValue === undefined);
 
   const animatedValue = useSpringValue(value, duration);
+
+  // 👇 actual chart size is driven by outerRadius
+  const chartSize = outerRadius * 2 + 10;
 
   useEffect(() => {
     if (staticValue !== undefined) {
@@ -143,10 +148,13 @@ export function DonutStatCard({
 
   return (
     <div style={{ ...styles.wrapper, ...style }} className={className}>
-      <div style={{ position: "relative", width: size, height: size }}>
-        <PieChart width={size} height={size}>
+      {/* 👇 chartSize is now derived from outerRadius, size prop is gone */}
+      <div style={{ position: "relative", width: chartSize, height: chartSize }}>
+        <PieChart width={chartSize} height={chartSize}>
           <Pie
             data={loading ? [{ value: 1 }] : donutData}
+            cx={chartSize / 2 - 1}
+            cy={chartSize / 2 - 1}
             innerRadius={innerRadius}
             outerRadius={outerRadius}
             dataKey="value"
@@ -166,13 +174,16 @@ export function DonutStatCard({
           </Pie>
         </PieChart>
 
-        <div style={styles.centerText}>
-          {loading ? (
-            <span style={styles.loadingDots}>···</span>
-          ) : (
-            <span>{animatedValue.toFixed(1)}%</span>
-          )}
-        </div>
+        {/* 👇 only render if showValue is true */}
+        {showValue && (
+          <div style={styles.centerText}>
+            {loading ? (
+              <span style={styles.loadingDots}>···</span>
+            ) : (
+              <span>{animatedValue.toFixed(1)}%</span>
+            )}
+          </div>
+        )}
       </div>
 
       {label && <div style={styles.label}>{label}</div>}
@@ -216,3 +227,4 @@ const styles: Record<string, React.CSSProperties> = {
     fontSize: "0.75em",
   },
 };
+
