@@ -16,6 +16,18 @@ interface AnimatedStatProps {
 }
 
 function extractValue(data: any, dataKey: string): number {
+  // support "label:Composite.value" syntax for array responses
+  if (dataKey.startsWith("label:")) {
+    const withoutPrefix = dataKey.replace("label:", "");
+    const dotIndex = withoutPrefix.lastIndexOf(".");
+    const labelPart = withoutPrefix.substring(0, dotIndex);
+    const field = withoutPrefix.substring(dotIndex + 1);
+    const arr = Array.isArray(data) ? data : [data];
+    const found = arr.find((item: any) => item.label === labelPart);
+    return found ? parseFloat(found[field]) || 0 : 0;
+  }
+
+  // support array index like "0.value"
   const target = Array.isArray(data) ? data[0] : data;
   const keys = dataKey.split(".");
   let result = target;
@@ -47,7 +59,7 @@ export function AnimatedStat({
     if (!glancesUrl || !endpoint || !dataKey) return;
 
     const base = glancesUrl.replace(/\/$/, "");
-    const url = `${base}/${endpoint}`;
+    const url = `${base}/api/4/${endpoint}`;
 
     const fetchData = async () => {
       try {
@@ -64,8 +76,8 @@ export function AnimatedStat({
       }
     };
 
-    fetchData(); // 🔄 fires every time tick changes
-  }, [glancesUrl, endpoint, dataKey, divisor, tick]); // 👈 no more setInterval
+    fetchData();
+  }, [glancesUrl, endpoint, dataKey, divisor, tick]);
 
   if (loading) {
     return (
