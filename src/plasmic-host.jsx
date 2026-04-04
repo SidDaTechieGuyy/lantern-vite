@@ -8,6 +8,7 @@ registerComponent(AnimatedStat, {
     glancesUrl: { type: "string", defaultValue: "http://localhost:61208" },
     endpoint: { type: "string", defaultValue: "cpu" },
     dataKey: { type: "string", defaultValue: "total" },
+    staticValue: { type: "number" },
     suffix: { type: "string", defaultValue: "%" },
     prefix: { type: "string", defaultValue: "" },
     decimals: { type: "number", defaultValue: 1 },
