@@ -13,7 +13,7 @@
     "@ant-design/icons": "^6.1.1",
     "@ant-design/pro-components": "^2.6.4",
     "@plasmicapp/cli": "^0.1.359",
-    "@plasmicapp/loader-react": "^2.0.0",
+    "@plasmicapp/host": "^2.0.0",
     "@plasmicapp/react-web": "^1.0.0",
     "@plasmicpkgs/antd5": "^0.0.337",
     "@plasmicpkgs/plasmic-basic-components": "^0.0.272",
