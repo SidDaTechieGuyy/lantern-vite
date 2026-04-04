@@ -278,4 +278,27 @@ const styles: Record<string, React.CSSProperties> = {
     left: 0,
     right: 0,
     bottom: 0,
-    display
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    fontSize: "0.85em",
+    fontWeight: 600,
+    pointerEvents: "none",
+  },
+  loadingDots: {
+    opacity: 0.3,
+    fontSize: "1.2em",
+    letterSpacing: "0.1em",
+  },
+  label: {
+    fontSize: "0.75em",
+    opacity: 0.55,
+    textTransform: "uppercase",
+    letterSpacing: "0.08em",
+  },
+  error: {
+    color: "#f87171",
+    fontSize: "0.75em",
+  },
+};
+
