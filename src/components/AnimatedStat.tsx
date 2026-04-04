@@ -47,7 +47,7 @@ export function AnimatedStat({
     if (!glancesUrl || !endpoint || !dataKey) return;
 
     const base = glancesUrl.replace(/\/$/, "");
-    const url = `${base}/api/3/${endpoint}`;
+    const url = `${base}/${endpoint}`; // 👈 was `/api/3/${endpoint}`
 
     const fetchData = async () => {
       try {
