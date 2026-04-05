@@ -27373,13 +27373,13 @@
           "id": "dmctOjfjQVhJ",
           "name": "AnimatedStat",
           "displayName": "AnimatedStat",
-          "componentImportPath": "./components/AnimatedStat"
+          "componentImportPath": "@/components/AnimatedStat"
         },
         {
           "id": "SgxQU-TsV9pU",
           "name": "DonutStatCard",
           "displayName": "DonutStatCard",
-          "componentImportPath": "./components/DonutStatCard"
+          "componentImportPath": "@/components/DonutStatCard"
         }
       ],
       "customFunctions": []
