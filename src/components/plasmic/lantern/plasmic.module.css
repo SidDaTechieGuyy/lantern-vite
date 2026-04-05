@@ -111,7 +111,7 @@
   --plasmic-token-size-20: var(--token-n4-8TqmVnHZg);
   --token-9jVXPiuRbmYG: var(--token-RN6-6smk2YHi);
   --plasmic-token-basic-ring: var(--token-9jVXPiuRbmYG);
-  --token-R3gtt6iMojhE: var(--token-GQQSYIXwL9h_);
+  --token-R3gtt6iMojhE: #d1d5db;
   --plasmic-token-basic-border: var(--token-R3gtt6iMojhE);
   --token-_Y5ttlKXtdDQ: var(--token-YTNNB1KtOvN9);
   --plasmic-token-muted-muted-soft-hover: var(--token-_Y5ttlKXtdDQ);
@@ -243,7 +243,7 @@
   --mixin-iwzVBZlYKBIT_user-select: text;
   --mixin-iwzVBZlYKBIT_text-decoration-line: none;
   --mixin-iwzVBZlYKBIT_text-overflow: clip;
-  --mixin-iwzVBZlYKBIT_color: #000000;
+  --mixin-iwzVBZlYKBIT_color: #ffffff;
   --mixin-0pbH-MmgZKH8_font-weight: 700;
   --mixin-0pbH-MmgZKH8_font-size: 64px;
   --mixin-0pbH-MmgZKH8_line-height: 1;

@@ -91,7 +91,7 @@ export default function GlobalContextsProvider(props) {
                 fontSize: "16px",
                 fontWeight: "400",
                 lineHeight: "1.5",
-                color: "#000000",
+                color: "#FFFFFF",
                 letterSpacing: "normal"
               }
             : undefined

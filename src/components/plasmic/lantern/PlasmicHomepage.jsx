@@ -23,15 +23,17 @@ import {
 } from "@plasmicapp/react-web/lib/host";
 import { usePlasmicDataSourceContext } from "@plasmicapp/data-sources-context";
 import { usePlasmicInvalidate } from "@plasmicapp/react-web/lib/data-sources";
-import { AnimatedStat } from "../../../../components/AnimatedStat"; // plasmic-import: dmctOjfjQVhJ/codeComponent
-import { DonutStatCard } from "../../../../components/DonutStatCard"; // plasmic-import: SgxQU-TsV9pU/codeComponent
+import { AnimatedStat } from "@/components/AnimatedStat"; // plasmic-import: dmctOjfjQVhJ/codeComponent
+import { DonutStatCard } from "@/components/DonutStatCard"; // plasmic-import: SgxQU-TsV9pU/codeComponent
 import { DataFetcher } from "@plasmicpkgs/plasmic-query";
 import Button from "../../Button"; // plasmic-import: q5yBY-eKZ0QK/component
+import { PortBadges } from "@/components/PortBadges"; // plasmic-import: -sOR6cuubXQN/codeComponent
 import { Timer } from "@plasmicpkgs/plasmic-basic-components";
 import { _useStyleTokens } from "./PlasmicStyleTokensProvider"; // plasmic-import: 54HsYifXcmbnw5veKzJ3R2/styleTokensProvider
 import "@plasmicapp/react-web/lib/plasmic.css";
 import projectcss from "./plasmic.module.css"; // plasmic-import: 54HsYifXcmbnw5veKzJ3R2/projectcss
 import sty from "./PlasmicHomepage.module.css"; // plasmic-import: VO-JOznlsGEg/css
+import DatabaseExclamationIcon from "../library_tabler_3_2_icons/icons/PlasmicIcon__DatabaseExclamation"; // plasmic-import: Jc4c-GEdYp7J/icon
 
 const emptyProxy = new Proxy(() => "", {
   get(_, prop) {
@@ -773,7 +775,30 @@ function PlasmicHomepage__RenderFunc(props) {
               dataName={"fetchedData"}
               errorDisplay={
                 <DataCtxReader__>
-                  {$ctx => "Error fetching data"}
+                  {$ctx => (
+                    <div
+                      className={classNames(projectcss.all, sty.freeBox__wGDxX)}
+                    >
+                      <DatabaseExclamationIcon
+                        data-plasmic-name={"svg"}
+                        data-plasmic-override={overrides.svg}
+                        className={classNames(projectcss.all, sty.svg)}
+                        role={"img"}
+                      />
+
+                      <div
+                        className={classNames(
+                          projectcss.all,
+                          projectcss.__wab_text,
+                          sty.text__o8CzR
+                        )}
+                      >
+                        {
+                          "Error fetching data, make sure Lantern has access to the docker socket"
+                        }
+                      </div>
+                    </div>
+                  )}
                 </DataCtxReader__>
               }
               errorName={"fetchError"}
@@ -782,6 +807,7 @@ function PlasmicHomepage__RenderFunc(props) {
               }
               method={"GET"}
               noLayout={false}
+              previewErrorDisplay={false}
               url={(() => {
                 try {
                   return $state.restApi + "containers";
@@ -832,9 +858,10 @@ function PlasmicHomepage__RenderFunc(props) {
                           )}
                         >
                           <Button
-                            data-plasmic-name={"button"}
-                            data-plasmic-override={overrides.button}
-                            className={classNames("__wab_instance", sty.button)}
+                            className={classNames(
+                              "__wab_instance",
+                              sty.button__wLd9S
+                            )}
                             color={(() => {
                               try {
                                 return currentItem.status === "restarting"
@@ -950,19 +977,71 @@ function PlasmicHomepage__RenderFunc(props) {
                             })()}
                           />
 
-                          <div
+                          <PortBadges
                             className={classNames(
-                              projectcss.all,
-                              projectcss.__wab_text,
-                              sty.text__z8Luo
+                              "__wab_instance",
+                              sty.portBadges__i2E00
                             )}
+                            ports={(() => {
+                              try {
+                                return currentItem.ports;
+                              } catch (e) {
+                                if (
+                                  e instanceof TypeError ||
+                                  e?.plasmicType === "PlasmicUndefinedDataError"
+                                ) {
+                                  return undefined;
+                                }
+                                throw e;
+                              }
+                            })()}
                           >
-                            <React.Fragment>
-                              {currentItem.ports === ""
-                                ? "--"
-                                : currentItem.ports}
-                            </React.Fragment>
-                          </div>
+                            <DataCtxReader__>
+                              {$ctx =>
+                                (_par =>
+                                  !_par
+                                    ? []
+                                    : Array.isArray(_par)
+                                      ? _par
+                                      : [_par])(
+                                  (() => {
+                                    try {
+                                      return $ctx.ports;
+                                    } catch (e) {
+                                      if (
+                                        e instanceof TypeError ||
+                                        e?.plasmicType ===
+                                          "PlasmicUndefinedDataError"
+                                      ) {
+                                        return [];
+                                      }
+                                      throw e;
+                                    }
+                                  })()
+                                ).map((__plasmic_item_1, __plasmic_idx_1) => {
+                                  const currentItem = __plasmic_item_1;
+                                  const currentIndex = __plasmic_idx_1;
+                                  return (
+                                    <button
+                                      className={classNames(
+                                        projectcss.all,
+                                        projectcss.button,
+                                        projectcss.button__54HsY,
+                                        projectcss.__wab_text,
+                                        sty.button__iNsy5,
+                                        ``
+                                      )}
+                                      key={currentIndex}
+                                    >
+                                      <React.Fragment>
+                                        {currentItem.host}
+                                      </React.Fragment>
+                                    </button>
+                                  );
+                                })
+                              }
+                            </DataCtxReader__>
+                          </PortBadges>
                         </div>
                       </div>
                     );
@@ -1029,6 +1108,23 @@ function PlasmicHomepage__RenderFunc(props) {
             }}
             runWhileEditing={false}
           />
+
+          <PortBadges
+            className={classNames("__wab_instance", sty.portBadges__bfuCw)}
+            ports={(() => {
+              try {
+                return undefined;
+              } catch (e) {
+                if (
+                  e instanceof TypeError ||
+                  e?.plasmicType === "PlasmicUndefinedDataError"
+                ) {
+                  return undefined;
+                }
+                throw e;
+              }
+            })()}
+          />
         </div>
       </div>
     </React.Fragment>
@@ -1036,10 +1132,10 @@ function PlasmicHomepage__RenderFunc(props) {
 }
 
 const PlasmicDescendants = {
-  root: ["root", "h1", "httpRestApiFetcher", "button", "timer"],
+  root: ["root", "h1", "httpRestApiFetcher", "svg", "timer"],
   h1: ["h1"],
-  httpRestApiFetcher: ["httpRestApiFetcher", "button"],
-  button: ["button"],
+  httpRestApiFetcher: ["httpRestApiFetcher", "svg"],
+  svg: ["svg"],
   timer: ["timer"]
 };
 
@@ -1077,7 +1173,7 @@ export const PlasmicHomepage = Object.assign(
     // Helper components rendering sub-elements
     h1: makeNodeComponent("h1"),
     httpRestApiFetcher: makeNodeComponent("httpRestApiFetcher"),
-    button: makeNodeComponent("button"),
+    svg: makeNodeComponent("svg"),
     timer: makeNodeComponent("timer"),
     // Metadata about props expected for PlasmicHomepage
     internalVariantProps: PlasmicHomepage__VariantProps,
