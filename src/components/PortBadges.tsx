@@ -50,4 +50,4 @@ export default function PortBadges({
   );
 }
 
-PortBadges.displayName = "PortBadg
+PortBadges.displayName = "PortBadges";
