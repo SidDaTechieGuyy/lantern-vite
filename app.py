@@ -3,7 +3,7 @@ import docker
 import json
 import time
 import os
-from flask import Flask, Response, send_from_directory
+from flask import Flask, Response
 from flask_cors import CORS
 
 app = Flask(__name__, static_folder='dist', static_url_path='')
@@ -109,7 +109,7 @@ def get_stats():
 @app.route('/stream')
 def stream():
     def generate():
-        psutil.cpu_percent(interval=None)  # prime the cpu meter
+        psutil.cpu_percent(interval=None)
         while True:
             try:
                 data = get_stats()
@@ -134,16 +134,9 @@ def health():
     return {'status': 'ok'}
 
 
-@app.route('/')
-def index():
-    return send_from_directory('dist', 'index.html')
-
-
-@app.route('/<path:path>')
-def static_files(path):
-    if os.path.exists(os.path.join('dist', path)):
-        return send_from_directory('dist', path)
-    return send_from_directory('dist', 'index.html')
+@app.errorhandler(404)
+def not_found(e):
+    return app.send_static_file('index.html')
 
 
 if __name__ == '__main__':
