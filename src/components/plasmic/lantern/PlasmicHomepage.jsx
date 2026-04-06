@@ -978,9 +978,11 @@ function PlasmicHomepage__RenderFunc(props) {
                           />
 
                           <PortBadges
+                            data-plasmic-name={"portBadges"}
+                            data-plasmic-override={overrides.portBadges}
                             className={classNames(
                               "__wab_instance",
-                              sty.portBadges__i2E00
+                              sty.portBadges
                             )}
                             ports={(() => {
                               try {
@@ -1040,7 +1042,7 @@ function PlasmicHomepage__RenderFunc(props) {
                                                 destination: (() => {
                                                   try {
                                                     return (
-                                                      $state.restApi +
+                                                      window.location.origin +
                                                       ":" +
                                                       currentItem.host
                                                     );
@@ -1088,7 +1090,9 @@ function PlasmicHomepage__RenderFunc(props) {
                                       }}
                                     >
                                       <React.Fragment>
-                                        {currentItem.host}
+                                        {currentItem.host +
+                                          "/" +
+                                          currentItem.protocol}
                                       </React.Fragment>
                                     </button>
                                   );
@@ -1162,23 +1166,6 @@ function PlasmicHomepage__RenderFunc(props) {
             }}
             runWhileEditing={false}
           />
-
-          <PortBadges
-            className={classNames("__wab_instance", sty.portBadges__bfuCw)}
-            ports={(() => {
-              try {
-                return undefined;
-              } catch (e) {
-                if (
-                  e instanceof TypeError ||
-                  e?.plasmicType === "PlasmicUndefinedDataError"
-                ) {
-                  return undefined;
-                }
-                throw e;
-              }
-            })()}
-          />
         </div>
       </div>
     </React.Fragment>
@@ -1186,10 +1173,11 @@ function PlasmicHomepage__RenderFunc(props) {
 }
 
 const PlasmicDescendants = {
-  root: ["root", "h1", "httpRestApiFetcher", "svg", "timer"],
+  root: ["root", "h1", "httpRestApiFetcher", "svg", "portBadges", "timer"],
   h1: ["h1"],
-  httpRestApiFetcher: ["httpRestApiFetcher", "svg"],
+  httpRestApiFetcher: ["httpRestApiFetcher", "svg", "portBadges"],
   svg: ["svg"],
+  portBadges: ["portBadges"],
   timer: ["timer"]
 };
 
@@ -1228,6 +1216,7 @@ export const PlasmicHomepage = Object.assign(
     h1: makeNodeComponent("h1"),
     httpRestApiFetcher: makeNodeComponent("httpRestApiFetcher"),
     svg: makeNodeComponent("svg"),
+    portBadges: makeNodeComponent("portBadges"),
     timer: makeNodeComponent("timer"),
     // Metadata about props expected for PlasmicHomepage
     internalVariantProps: PlasmicHomepage__VariantProps,
