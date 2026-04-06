@@ -318,7 +318,7 @@
   -webkit-transition-timing-function: linear;
   -webkit-transition-duration: 1s;
   border-radius: 20px;
-  padding: 15px 20px 20px;
+  padding: 10px 20px 20px;
   margin: 0px;
 }
 .freeBox___2L1M9 {
@@ -427,7 +427,7 @@
   width: 100%;
   height: auto;
   max-width: 100%;
-  column-gap: 20px;
+  column-gap: 15px;
   min-width: 0;
   padding: 8px;
 }
@@ -488,6 +488,7 @@
   align-items: center;
 }
 .button__iNsy5 {
+  animation: none;
   width: auto;
   height: auto;
   max-width: 100%;
@@ -495,9 +496,21 @@
   font-size: 12px;
   text-align: center;
   color: #ffffff;
+  cursor: pointer;
+  transition-property: all;
+  transition-duration: 0.25s;
+  transition-timing-function: ease-in-out;
+  -webkit-transition-property: all;
+  -webkit-transition-timing-function: ease-in-out;
+  -webkit-transition-duration: 0.25s;
   border-radius: 10px;
   padding: 3px 5px;
   border: 1px solid #d1d5db14;
+}
+.root .button__iNsy5:hover {
+  background: #0f2337;
+  transform: translate3d(0px, -5px, 0px);
+  backface-visibility: visible;
 }
 .timer:global(.__wab_instance) {
   max-width: 100%;

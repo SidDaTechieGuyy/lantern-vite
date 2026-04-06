@@ -1032,6 +1032,60 @@ function PlasmicHomepage__RenderFunc(props) {
                                         ``
                                       )}
                                       key={currentIndex}
+                                      onClick={async event => {
+                                        const $steps = {};
+                                        $steps["goToPage"] = true
+                                          ? (() => {
+                                              const actionArgs = {
+                                                destination: (() => {
+                                                  try {
+                                                    return (
+                                                      $state.restApi +
+                                                      ":" +
+                                                      currentItem.host
+                                                    );
+                                                  } catch (e) {
+                                                    if (
+                                                      e instanceof TypeError ||
+                                                      e?.plasmicType ===
+                                                        "PlasmicUndefinedDataError"
+                                                    ) {
+                                                      return "";
+                                                    }
+                                                    throw e;
+                                                  }
+                                                })()
+                                              };
+                                              return (({ destination }) => {
+                                                if (
+                                                  typeof destination ===
+                                                    "string" &&
+                                                  destination.startsWith("#")
+                                                ) {
+                                                  document
+                                                    .getElementById(
+                                                      destination.substr(1)
+                                                    )
+                                                    .scrollIntoView({
+                                                      behavior: "smooth"
+                                                    });
+                                                } else {
+                                                  location.assign(destination);
+                                                }
+                                              })?.apply(null, [actionArgs]);
+                                            })()
+                                          : undefined;
+                                        if (
+                                          $steps["goToPage"] != null &&
+                                          typeof $steps["goToPage"] ===
+                                            "object" &&
+                                          typeof $steps["goToPage"].then ===
+                                            "function"
+                                        ) {
+                                          $steps["goToPage"] =
+                                            await $steps["goToPage"];
+                                        }
+                                      }}
                                     >
                                       <React.Fragment>
                                         {currentItem.host}
