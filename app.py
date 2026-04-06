@@ -2,12 +2,13 @@ import psutil
 import docker
 import json
 import time
-import os
-from flask import Flask, Response, send_from_directory
+from flask import Flask, Response
 from flask_cors import CORS
+from whitenoise import WhiteNoise
 
-app = Flask(__name__, static_folder='dist', static_url_path='/')
+app = Flask(__name__)
 CORS(app)
+app.wsgi_app = WhiteNoise(app.wsgi_app, root='dist/', index_file=True)
 
 docker_client = docker.from_env()
 
@@ -106,6 +107,11 @@ def get_stats():
     }
 
 
+@app.route('/plasmic-host')
+def plasmic_host():
+    return app.send_static_file('index.html')
+
+
 @app.route('/stream')
 def stream():
     def generate():
@@ -132,14 +138,6 @@ def stream():
 @app.route('/health')
 def health():
     return {'status': 'ok'}
-
-
-@app.route('/', defaults={'path': ''})
-@app.route('/<path:path>')
-def serve(path):
-    if path != "" and os.path.exists(os.path.join(app.static_folder, path)):
-        return send_from_directory(app.static_folder, path)
-    return send_from_directory(app.static_folder, 'index.html')
 
 
 if __name__ == '__main__':
