@@ -1,9 +1,9 @@
 services:
-  lantern:
-    build: .
-    pid: host
-    ports:
+lantern:
+    image: siddatechie/lantern:latest
+pid: host
+ports:
       - "7575:80"
-    volumes:
-      - /var/run/docker.sock:/var/run/docker.sock
-    restart: unless-stopped
+volumes:
+- /var/run/docker.sock:/var/run/docker.sock
+restart: unless-stopped
