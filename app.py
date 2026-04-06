@@ -3,10 +3,10 @@ import docker
 import json
 import time
 import os
-from flask import Flask, Response
+from flask import Flask, Response, send_from_directory
 from flask_cors import CORS
 
-app = Flask(__name__, static_folder='dist', static_url_path='')
+app = Flask(__name__, static_folder='dist', static_url_path='/')
 CORS(app)
 
 docker_client = docker.from_env()
@@ -134,9 +134,12 @@ def health():
     return {'status': 'ok'}
 
 
-@app.errorhandler(404)
-def not_found(e):
-    return app.send_static_file('index.html')
+@app.route('/', defaults={'path': ''})
+@app.route('/<path:path>')
+def serve(path):
+    if path != "" and os.path.exists(os.path.join(app.static_folder, path)):
+        return send_from_directory(app.static_folder, path)
+    return send_from_directory(app.static_folder, 'index.html')
 
 
 if __name__ == '__main__':
