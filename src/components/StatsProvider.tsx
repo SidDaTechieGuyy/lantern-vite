@@ -7,7 +7,7 @@ interface StatsProviderProps {
 }
 
 export function StatsProvider({ children, className }: StatsProviderProps) {
-  const [stats, setStats] = useState(null);
+  const [stats, setStats] = useState({});
   const [connected, setConnected] = useState(false);
 
   useEffect(() => {
