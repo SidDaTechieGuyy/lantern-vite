@@ -1,13 +1,14 @@
-import os
 import psutil
 import docker
 import json
 import time
-from flask import Flask, Response, send_from_directory
+from flask import Flask, Response
 from flask_cors import CORS
+from whitenoise import WhiteNoise
 
-app = Flask(__name__, static_folder='dist', static_url_path='')
+app = Flask(__name__)
 CORS(app)
+app.wsgi_app = WhiteNoise(app.wsgi_app, root='dist/', index_file=True)
 
 docker_client = docker.from_env()
 
@@ -134,8 +135,6 @@ def health():
     return {'status': 'ok'}
 
 
-# ✅ This is the key fix — intercept ALL 404s and return index.html
-# Flask still serves real static files fine, but unknown paths go to React Router
 @app.errorhandler(404)
 def not_found(e):
     return app.send_static_file('index.html')
