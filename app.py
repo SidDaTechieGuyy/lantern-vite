@@ -1,14 +1,14 @@
+import os
 import psutil
 import docker
 import json
 import time
-from flask import Flask, Response
+from flask import Flask, Response, send_from_directory
 from flask_cors import CORS
 from whitenoise import WhiteNoise
 
-app = Flask(__name__)
+app = Flask(__name__, static_folder='dist', static_url_path='')
 CORS(app)
-app.wsgi_app = WhiteNoise(app.wsgi_app, root='dist/', index_file=True)
 
 docker_client = docker.from_env()
 
@@ -107,11 +107,6 @@ def get_stats():
     }
 
 
-@app.route('/plasmic-host')
-def plasmic_host():
-    return app.send_static_file('index.html')
-
-
 @app.route('/stream')
 def stream():
     def generate():
@@ -138,6 +133,17 @@ def stream():
 @app.route('/health')
 def health():
     return {'status': 'ok'}
+
+
+@app.route('/', defaults={'path': ''})
+@app.route('/<path:path>')
+def catch_all(path):
+    # If it's a real static file in dist/, serve it
+    static_file = os.path.join(app.static_folder, path)
+    if path and os.path.exists(static_file) and os.path.isfile(static_file):
+        return send_from_directory(app.static_folder, path)
+    # Otherwise serve index.html and let React Router handle it
+    return send_from_directory(app.static_folder, 'index.html')
 
 
 if __name__ == '__main__':
