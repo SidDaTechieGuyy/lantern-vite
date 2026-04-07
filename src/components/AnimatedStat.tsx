@@ -1,116 +1,32 @@
-import React, { useEffect, useState } from "react";
+import React from "react";
 import CountUp from "react-countup";
 
 interface AnimatedStatProps {
-  glancesUrl?: string;        // 👈 made optional (not needed when using staticValue)
-  endpoint?: string;          // 👈 made optional
-  dataKey?: string;           // 👈 made optional
+  value?: number;
   suffix?: string;
   prefix?: string;
   decimals?: number;
   divisor?: number;
   duration?: number;
   label?: string;
-  tick?: number;
   className?: string;
-  staticValue?: number;       // 👈 new
-}
-
-function extractValue(data: any, dataKey: string): number {
-  // support "label:Composite.value" syntax for array responses
-  if (dataKey.startsWith("label:")) {
-    const withoutPrefix = dataKey.replace("label:", "");
-    const dotIndex = withoutPrefix.lastIndexOf(".");
-    const labelPart = withoutPrefix.substring(0, dotIndex);
-    const field = withoutPrefix.substring(dotIndex + 1);
-    const arr = Array.isArray(data) ? data : [data];
-    const found = arr.find((item: any) => item.label === labelPart);
-    return found ? parseFloat(found[field]) || 0 : 0;
-  }
-
-  // support array index like "0.value"
-  const target = Array.isArray(data) ? data[0] : data;
-  const keys = dataKey.split(".");
-  let result = target;
-  for (const k of keys) {
-    if (result == null) return 0;
-    result = result[k];
-  }
-  return typeof result === "number" ? result : parseFloat(result) || 0;
 }
 
 export function AnimatedStat({
-  glancesUrl,
-  endpoint,
-  dataKey,
+  value = 0,
   suffix = "",
   prefix = "",
   decimals = 1,
   divisor = 1,
-  duration = 0.6,
+  duration = 0.3,
   label = "",
-  tick = 0,
   className,
-  staticValue,                // 👈 new
 }: AnimatedStatProps) {
-  const [value, setValue] = useState<number>(staticValue ?? 0);  // 👈 seed with staticValue if present
-  const [error, setError] = useState<string | null>(null);
-  const [loading, setLoading] = useState<boolean>(!( staticValue !== undefined)); // 👈 skip loading if staticValue
-
-  useEffect(() => {
-    // 👇 if staticValue is provided, just use it directly, no fetch
-    if (staticValue !== undefined) {
-      setValue(staticValue / divisor);
-      setLoading(false);
-      return;
-    }
-
-    if (!glancesUrl || !endpoint || !dataKey) return;
-
-    const base = glancesUrl.replace(/\/$/, "");
-    const url = `${base}/${endpoint}`;
-
-    const fetchData = async () => {
-      try {
-        const res = await fetch(url);
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        const json = await res.json();
-        const raw = extractValue(json, dataKey);
-        setValue(raw / divisor);
-        setError(null);
-      } catch (err: any) {
-        setError(err.message || "Fetch error");
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchData();
-  }, [glancesUrl, endpoint, dataKey, divisor, tick, staticValue]); // 👈 added staticValue
-
-  if (loading) {
-    return (
-      <div style={styles.wrapper} className={className}>
-        {label && <div style={styles.label}>{label}</div>}
-        <div style={styles.loading}>...</div>
-      </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <div style={styles.wrapper} className={className}>
-        {label && <div style={styles.label}>{label}</div>}
-        <div style={styles.error}>⚠ {error}</div>
-      </div>
-    );
-  }
-
   return (
     <div style={styles.wrapper} className={className}>
       {label && <div style={styles.label}>{label}</div>}
       <CountUp
-        end={value}
+        end={value / divisor}
         suffix={suffix}
         prefix={prefix}
         decimals={decimals}
@@ -133,13 +49,5 @@ const styles: Record<string, React.CSSProperties> = {
     opacity: 0.6,
     textTransform: "uppercase",
     letterSpacing: "0.05em",
-  },
-  loading: {
-    opacity: 0.4,
-    fontSize: "1.2em",
-  },
-  error: {
-    color: "#f87171",
-    fontSize: "0.75em",
   },
 };
