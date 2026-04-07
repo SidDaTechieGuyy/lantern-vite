@@ -1,3 +1,4 @@
+import threading
 import psutil
 import docker
 import json
@@ -29,54 +30,68 @@ def get_cpu_temp():
     return None
 
 
+def get_container_stats(c):
+    ports = []
+    if c.ports:
+        for container_port, bindings in c.ports.items():
+            proto = container_port.split('/')[1] if '/' in container_port else 'tcp'
+            cport = container_port.split('/')[0]
+            if bindings:
+                for b in bindings:
+                    host_port = b.get('HostPort', cport)
+                    ports.append(f"{host_port}/{proto}")
+            else:
+                ports.append(f"{cport}/{proto}")
+
+    cpu_percent = 0.0
+    mem_percent = 0.0
+    mem_gb = 0.0
+
+    if c.status == 'running':
+        try:
+            stats = c.stats(stream=False)
+            cpu_delta = stats['cpu_stats']['cpu_usage']['total_usage'] - \
+                        stats['precpu_stats']['cpu_usage']['total_usage']
+            system_delta = stats['cpu_stats'].get('system_cpu_usage', 0) - \
+                           stats['precpu_stats'].get('system_cpu_usage', 0)
+            num_cpus = len(stats['cpu_stats']['cpu_usage'].get('percpu_usage') or [1])
+            if system_delta > 0:
+                cpu_percent = round((cpu_delta / system_delta) * num_cpus * 100, 1)
+
+            mem_usage = stats['memory_stats'].get('usage', 0)
+            mem_limit = stats['memory_stats'].get('limit', 1)
+            mem_percent = round((mem_usage / mem_limit) * 100, 1)
+            mem_gb = round(mem_usage / (1024 ** 3), 2)
+        except Exception:
+            pass
+
+    return {
+        'name': c.name,
+        'status': c.status,
+        'cpu': cpu_percent,
+        'mem_percent': mem_percent,
+        'mem_gb': mem_gb,
+        'ports': ports,
+        'image': c.image.tags[0] if c.image.tags else 'unknown',
+    }
+
+
 def get_containers():
     containers = []
     try:
-        for c in docker_client.containers.list(all=True):
-            ports = []
-            if c.ports:
-                for container_port, bindings in c.ports.items():
-                    proto = container_port.split('/')[1] if '/' in container_port else 'tcp'
-                    cport = container_port.split('/')[0]
-                    if bindings:
-                        for b in bindings:
-                            host_port = b.get('HostPort', cport)
-                            ports.append(f"{host_port}/{proto}")
-                    else:
-                        ports.append(f"{cport}/{proto}")
+        all_containers = docker_client.containers.list(all=True)
+        results = [None] * len(all_containers)
 
-            cpu_percent = 0.0
-            mem_percent = 0.0
-            mem_gb = 0.0
+        def fetch(index, c):
+            results[index] = get_container_stats(c)
 
-            if c.status == 'running':
-                try:
-                    stats = c.stats(stream=False)
-                    cpu_delta = stats['cpu_stats']['cpu_usage']['total_usage'] - \
-                                stats['precpu_stats']['cpu_usage']['total_usage']
-                    system_delta = stats['cpu_stats'].get('system_cpu_usage', 0) - \
-                                   stats['precpu_stats'].get('system_cpu_usage', 0)
-                    num_cpus = len(stats['cpu_stats']['cpu_usage'].get('percpu_usage') or [1])
-                    if system_delta > 0:
-                        cpu_percent = round((cpu_delta / system_delta) * num_cpus * 100, 1)
+        threads = [threading.Thread(target=fetch, args=(i, c)) for i, c in enumerate(all_containers)]
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join()
 
-                    mem_usage = stats['memory_stats'].get('usage', 0)
-                    mem_limit = stats['memory_stats'].get('limit', 1)
-                    mem_percent = round((mem_usage / mem_limit) * 100, 1)
-                    mem_gb = round(mem_usage / (1024 ** 3), 2)
-                except Exception:
-                    pass
-
-            containers.append({
-                'name': c.name,
-                'status': c.status,
-                'cpu': cpu_percent,
-                'mem_percent': mem_percent,
-                'mem_gb': mem_gb,
-                'ports': ports,
-                'image': c.image.tags[0] if c.image.tags else 'unknown',
-            })
-
+        containers = [r for r in results if r is not None]
         containers.sort(key=lambda x: x['name'].lower())
     except Exception as e:
         print(f"Docker error: {e}")
@@ -135,11 +150,10 @@ def health():
     return {'status': 'ok'}
 
 
-# ✅ The only change needed — catches unknown routes and hands them to React Router
 @app.errorhandler(404)
 def not_found(e):
     return app.send_static_file('index.html')
 
 
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=80)
+    app.run(host='***.0.0', port=80)
