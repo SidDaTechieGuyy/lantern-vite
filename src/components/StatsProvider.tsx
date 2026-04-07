@@ -7,7 +7,12 @@ interface StatsProviderProps {
 }
 
 export function StatsProvider({ children, className }: StatsProviderProps) {
-  const [stats, setStats] = useState({});
+const [stats, setStats] = useState({
+  cpu: { percent: 0, temp: null },
+  mem: { percent: 0, used: 0, total: 0 },
+  disk: { percent: 0, used: 0, total: 0 },
+  containers: [],
+});
   const [connected, setConnected] = useState(false);
 
   useEffect(() => {
