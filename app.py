@@ -5,7 +5,6 @@ import json
 import time
 from flask import Flask, Response, send_from_directory
 from flask_cors import CORS
-from whitenoise import WhiteNoise
 
 app = Flask(__name__, static_folder='dist', static_url_path='')
 CORS(app)
@@ -135,15 +134,11 @@ def health():
     return {'status': 'ok'}
 
 
-@app.route('/', defaults={'path': ''})
-@app.route('/<path:path>')
-def catch_all(path):
-    # If it's a real static file in dist/, serve it
-    static_file = os.path.join(app.static_folder, path)
-    if path and os.path.exists(static_file) and os.path.isfile(static_file):
-        return send_from_directory(app.static_folder, path)
-    # Otherwise serve index.html and let React Router handle it
-    return send_from_directory(app.static_folder, 'index.html')
+# ✅ This is the key fix — intercept ALL 404s and return index.html
+# Flask still serves real static files fine, but unknown paths go to React Router
+@app.errorhandler(404)
+def not_found(e):
+    return app.send_static_file('index.html')
 
 
 if __name__ == '__main__':
