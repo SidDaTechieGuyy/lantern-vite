@@ -1,15 +1,11 @@
 import React, { useEffect, useState, useRef } from "react";
 
 interface DonutStatCardProps {
-  glancesUrl?: string;
-  endpoint?: string;
-  dataKey?: string;
+  value?: number;
   duration?: number;
   label?: string;
-  tick?: number;
   className?: string;
   style?: React.CSSProperties;
-  staticValue?: number;
   emptyColor?: string;
   innerRadius?: number;
   outerRadius?: number;
@@ -17,26 +13,6 @@ interface DonutStatCardProps {
   gradientStart?: string;
   gradientMid?: string;
   gradientEnd?: string;
-}
-
-function extractValue(data: any, dataKey: string): number {
-  if (dataKey.startsWith("label:")) {
-    const withoutPrefix = dataKey.replace("label:", "");
-    const dotIndex = withoutPrefix.lastIndexOf(".");
-    const labelPart = withoutPrefix.substring(0, dotIndex);
-    const field = withoutPrefix.substring(dotIndex + 1);
-    const arr = Array.isArray(data) ? data : [data];
-    const found = arr.find((item: any) => item.label === labelPart);
-    return found ? parseFloat(found[field]) || 0 : 0;
-  }
-  const target = Array.isArray(data) ? data[0] : data;
-  const keys = dataKey.split(".");
-  let result = target;
-  for (const k of keys) {
-    if (result == null) return 0;
-    result = result[k];
-  }
-  return typeof result === "number" ? result : parseFloat(result) || 0;
 }
 
 function useSpringValue(target: number, duration: number) {
@@ -90,12 +66,7 @@ function lerpColor(
   return `rgb(${r},${g},${b2})`;
 }
 
-function gradientColor(
-  t: number,
-  start: string,
-  mid: string,
-  end: string
-): string {
+function gradientColor(t: number, start: string, mid: string, end: string): string {
   const s = hexToRgb(start);
   const m = hexToRgb(mid);
   const e = hexToRgb(end);
@@ -103,8 +74,6 @@ function gradientColor(
   return lerpColor(m, e, (t - 0.5) / 0.5);
 }
 
-// Instead of individual arc paths, we use a single SVG approach:
-// draw the ring as a filled shape using clipPath so there are zero gaps.
 function buildRingPath(
   cx: number,
   cy: number,
@@ -114,11 +83,8 @@ function buildRingPath(
   endAngleDeg: number
 ): string {
   const toRad = (d: number) => (d * Math.PI) / 180;
-
-  // Clamp to just under 360 to avoid SVG arc edge case
   const sweep = Math.min(endAngleDeg - startAngleDeg, 359.999);
   const endAngle = startAngleDeg + sweep;
-
   const s = toRad(startAngleDeg);
   const e = toRad(endAngle);
   const largeArc = sweep > 180 ? 1 : 0;
@@ -127,7 +93,6 @@ function buildRingPath(
   const oy1 = cy + outerR * Math.sin(s);
   const ox2 = cx + outerR * Math.cos(e);
   const oy2 = cy + outerR * Math.sin(e);
-
   const ix1 = cx + innerR * Math.cos(e);
   const iy1 = cy + innerR * Math.sin(e);
   const ix2 = cx + innerR * Math.cos(s);
@@ -145,15 +110,11 @@ function buildRingPath(
 const SEGMENTS = 200;
 
 export function DonutStatCard({
-  glancesUrl,
-  endpoint,
-  dataKey,
+  value = 0,
   duration = 0.6,
   label = "",
-  tick = 0,
   className,
   style,
-  staticValue,
   emptyColor = "rgba(255,255,255,0.06)",
   innerRadius = 10,
   outerRadius = 60,
@@ -162,59 +123,14 @@ export function DonutStatCard({
   gradientMid = "#facc15",
   gradientEnd = "#ef4444",
 }: DonutStatCardProps) {
-  const [value, setValue] = useState<number>(staticValue ?? 0);
-  const [error, setError] = useState<string | null>(null);
-  const [loading, setLoading] = useState<boolean>(staticValue === undefined);
-
   const animatedValue = useSpringValue(value, duration);
   const chartSize = outerRadius * 2 + 10;
   const cx = chartSize / 2;
   const cy = chartSize / 2;
 
-  useEffect(() => {
-    if (staticValue !== undefined) {
-      setValue(staticValue);
-      setLoading(false);
-      setError(null);
-      return;
-    }
-    if (!glancesUrl || !endpoint || !dataKey) return;
-
-    const base = glancesUrl.replace(/\/$/, "");
-    const url = `${base}/${endpoint}`;
-
-    const fetchData = async () => {
-      try {
-        const res = await fetch(url);
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        const json = await res.json();
-        const raw = extractValue(json, dataKey);
-        setValue(raw);
-        setError(null);
-      } catch (err: any) {
-        setError(err.message || "Fetch error");
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchData();
-  }, [glancesUrl, endpoint, dataKey, tick, staticValue]);
-
-  if (error) {
-    return (
-      <div style={{ ...styles.wrapper, ...style }} className={className}>
-        {label && <div style={styles.label}>{label}</div>}
-        <div style={styles.error}>⚠ {error}</div>
-      </div>
-    );
-  }
-
   const startAngleDeg = -90;
   const filledDeg = (Math.min(animatedValue, 100) / 100) * 360;
   const segmentDeg = 360 / SEGMENTS;
-
-  // Full background ring path
   const bgPath = buildRingPath(cx, cy, outerRadius, innerRadius, startAngleDeg, startAngleDeg + 360);
 
   return (
@@ -222,40 +138,27 @@ export function DonutStatCard({
       <div style={{ position: "relative", width: chartSize, height: chartSize }}>
         <svg width={chartSize} height={chartSize}>
 
-          {/* ── Background full ring ── */}
-          <path d={bgPath} fill={loading ? "rgba(255,255,255,0.08)" : emptyColor} />
+          {/* Background full ring */}
+          <path d={bgPath} fill={emptyColor} />
 
-          {/* ── Gradient filled segments ── */}
-          {!loading &&
-            Array.from({ length: SEGMENTS }, (_, i) => {
-              const segStartRel = i * segmentDeg;       // 0–360
-              const segEndRel = segStartRel + segmentDeg;
-
-              // Skip entirely if this segment hasn't started yet
-              if (segStartRel >= filledDeg) return null;
-
-              // Clip the last partial segment exactly
-              const clippedEndRel = Math.min(segEndRel, filledDeg);
-
-              const segStartAbs = startAngleDeg + segStartRel;
-              // Add tiny 0.5° overdraw so adjacent filled segments overlap, killing gaps
-              const segEndAbs = startAngleDeg + clippedEndRel + 0.5;
-
-              const t = i / SEGMENTS;
-              const color = gradientColor(t, gradientStart, gradientMid, gradientEnd);
-              const d = buildRingPath(cx, cy, outerRadius, innerRadius, segStartAbs, segEndAbs);
-
-              return <path key={i} d={d} fill={color} />;
-            })}
+          {/* Gradient filled segments */}
+          {Array.from({ length: SEGMENTS }, (_, i) => {
+            const segStartRel = i * segmentDeg;
+            const segEndRel = segStartRel + segmentDeg;
+            if (segStartRel >= filledDeg) return null;
+            const clippedEndRel = Math.min(segEndRel, filledDeg);
+            const segStartAbs = startAngleDeg + segStartRel;
+            const segEndAbs = startAngleDeg + clippedEndRel + 0.5;
+            const t = i / SEGMENTS;
+            const color = gradientColor(t, gradientStart, gradientMid, gradientEnd);
+            const d = buildRingPath(cx, cy, outerRadius, innerRadius, segStartAbs, segEndAbs);
+            return <path key={i} d={d} fill={color} />;
+          })}
         </svg>
 
         {showValue && (
           <div style={styles.centerText}>
-            {loading ? (
-              <span style={styles.loadingDots}>···</span>
-            ) : (
-              <span>{animatedValue.toFixed(1)}%</span>
-            )}
+            <span>{animatedValue.toFixed(1)}%</span>
           </div>
         )}
       </div>
@@ -285,19 +188,10 @@ const styles: Record<string, React.CSSProperties> = {
     fontWeight: 600,
     pointerEvents: "none",
   },
-  loadingDots: {
-    opacity: 0.3,
-    fontSize: "1.2em",
-    letterSpacing: "0.1em",
-  },
   label: {
     fontSize: "0.75em",
     opacity: 0.55,
     textTransform: "uppercase",
     letterSpacing: "0.08em",
-  },
-  error: {
-    color: "#f87171",
-    fontSize: "0.75em",
   },
 };
