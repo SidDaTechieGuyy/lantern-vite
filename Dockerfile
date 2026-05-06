@@ -1,12 +1,14 @@
 FROM node:20 AS builder
 WORKDIR /app
 COPY package*.json ./
-RUN npm install
+RUN npm ci
 COPY . .
 RUN npm run build
 
 FROM python:3.11-slim
-RUN pip install --no-cache-dir flask flask-cors gunicorn gevent psutil docker python-dateutil whitenoise
+ENV PYTHONDONTWRITEBYTECODE=1
+ENV PYTHONUNBUFFERED=1
+RUN pip install --no-cache-dir flask gunicorn gevent psutil docker whitenoise
 
 WORKDIR /app
 COPY --from=builder /app/dist ./dist

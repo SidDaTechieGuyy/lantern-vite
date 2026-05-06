@@ -1,20 +1,31 @@
-import threading
-import psutil
-import docker
 import json
+import threading
 import time
+
+import docker
+import psutil
 from flask import Flask, Response
-from flask_cors import CORS
 from whitenoise import WhiteNoise
 
-app = Flask(__name__, static_folder='dist', static_url_path='')
-CORS(app)
-app.wsgi_app = WhiteNoise(app.wsgi_app, root='dist/', index_file=True)
 
-docker_client = docker.from_env()
+STATS_INTERVAL_SECONDS = 1
+CONTAINER_REFRESH_SECONDS = 5
+BYTES_IN_GIB = 1024 ** 3
 
-# ✅ Shared cache — background threads write here, stream reads from here
-container_stats_cache: dict = {}
+app = Flask(__name__, static_folder="dist", static_url_path="")
+app.wsgi_app = WhiteNoise(app.wsgi_app, root="dist/", index_file=True)
+
+
+def create_docker_client():
+    try:
+        return docker.from_env()
+    except Exception as exc:
+        print(f"Docker unavailable: {exc}", flush=True)
+        return None
+
+
+docker_client = create_docker_client()
+container_stats_cache: dict[str, dict] = {}
 cache_lock = threading.Lock()
 
 
@@ -23,7 +34,7 @@ def get_cpu_temp():
         temps = psutil.sensors_temperatures()
         if not temps:
             return None
-        for name in ['coretemp', 'cpu_thermal', 'k10temp', 'acpitz']:
+        for name in ("coretemp", "cpu_thermal", "k10temp", "acpitz"):
             if name in temps and temps[name]:
                 return round(temps[name][0].current, 1)
         first = next(iter(temps.values()))
@@ -34,206 +45,196 @@ def get_cpu_temp():
     return None
 
 
-def parse_ports(container) -> list:
+def parse_ports(container) -> list[dict[str, str]]:
     seen = set()
     ports = []
-    if not container.ports:
-        return ports
-    for container_port, bindings in container.ports.items():
-        proto = container_port.split('/')[1] if '/' in container_port else 'tcp'
-        cport = container_port.split('/')[0]
+    raw_ports = container.attrs.get("NetworkSettings", {}).get("Ports") or {}
+
+    for container_port, bindings in raw_ports.items():
+        container_value, _, protocol = container_port.partition("/")
+        protocol = protocol or "tcp"
+
         if bindings:
-            for b in bindings:
-                host_port = b.get('HostPort', cport)
-                key = f"{host_port}/{proto}"
-                if key not in seen:
-                    seen.add(key)
-                    ports.append(key)
-        else:
-            key = f"{cport}/{proto}"
-            if key not in seen:
+            for binding in bindings:
+                host_port = binding.get("HostPort") or container_value
+                key = (host_port, container_value, protocol)
+                if key in seen:
+                    continue
                 seen.add(key)
-                ports.append(key)
+                ports.append(
+                    {
+                        "host": host_port,
+                        "container": container_value,
+                        "protocol": protocol,
+                        "label": (
+                            f"{host_port}/{protocol}"
+                            if host_port == container_value
+                            else f"{host_port}->{container_value}/{protocol}"
+                        ),
+                    }
+                )
+        else:
+            key = (container_value, container_value, protocol)
+            if key in seen:
+                continue
+            seen.add(key)
+            ports.append(
+                {
+                    "host": container_value,
+                    "container": container_value,
+                    "protocol": protocol,
+                    "label": f"{container_value}/{protocol}",
+                }
+            )
+
     return ports
 
 
-def watch_container(c):
-    """Runs forever in its own thread, continuously updating the cache for one container."""
-    name = c.name
-    while True:
-        try:
-            for stat in c.stats(stream=True, decode=True):
-                cpu_percent = 0.0
-                try:
-                    cpu_delta = stat['cpu_stats']['cpu_usage']['total_usage'] - \
-                                stat['precpu_stats']['cpu_usage']['total_usage']
-                    system_delta = stat['cpu_stats'].get('system_cpu_usage', 0) - \
-                                   stat['precpu_stats'].get('system_cpu_usage', 0)
-                    num_cpus = len(stat['cpu_stats']['cpu_usage'].get('percpu_usage') or [1])
-                    if system_delta > 0:
-                        cpu_percent = round((cpu_delta / system_delta) * num_cpus * 100, 1)
-                except Exception:
-                    pass
-
-                mem_percent = 0.0
-                mem_gb = 0.0
-                try:
-                    mem_usage = stat['memory_stats'].get('usage', 0)
-                    mem_limit = stat['memory_stats'].get('limit', 1)
-                    mem_percent = round((mem_usage / mem_limit) * 100, 1)
-                    mem_gb = round(mem_usage / (1024 ** 3), 2)
-                except Exception:
-                    pass
-
-                with cache_lock:
-                    if name in container_stats_cache:
-                        container_stats_cache[name]['cpu'] = cpu_percent
-                        container_stats_cache[name]['mem_percent'] = mem_percent
-                        container_stats_cache[name]['mem_gb'] = mem_gb
-
-        except Exception:
-            # Container stopped or errored — wait a bit then retry
-            time.sleep(2)
-            try:
-                # Refresh container object in case it restarted
-                c = docker_client.containers.get(name)
-            except Exception:
-                break  # Container is gone, stop watching
+def image_name(container) -> str:
+    tags = getattr(container.image, "tags", None) or []
+    return tags[0] if tags else "unknown"
 
 
-def start_watching_containers():
-    """Called once at startup — spawns a watcher thread per running container."""
+def calculate_cpu_percent(stats: dict) -> float:
     try:
-        for c in docker_client.containers.list(all=True):
-            with cache_lock:
-                container_stats_cache[c.name] = {
-                    'name': c.name,
-                    'status': c.status,
-                    'cpu': 0.0,
-                    'mem_percent': 0.0,
-                    'mem_gb': 0.0,
-                    'ports': parse_ports(c),
-                    'image': c.image.tags[0] if c.image.tags else 'unknown',
-                }
-
-            if c.status == 'running':
-                t = threading.Thread(target=watch_container, args=(c,), daemon=True)
-                t.start()
-
-    except Exception as e:
-        print(f"Error starting watchers: {e}")
+        cpu_usage = stats["cpu_stats"]["cpu_usage"]
+        prev_cpu_usage = stats["precpu_stats"]["cpu_usage"]
+        cpu_delta = cpu_usage["total_usage"] - prev_cpu_usage["total_usage"]
+        system_delta = stats["cpu_stats"].get("system_cpu_usage", 0) - stats[
+            "precpu_stats"
+        ].get("system_cpu_usage", 0)
+        online_cpus = stats["cpu_stats"].get("online_cpus") or len(
+            cpu_usage.get("percpu_usage") or [1]
+        )
+        if cpu_delta > 0 and system_delta > 0:
+            return round((cpu_delta / system_delta) * online_cpus * 100, 1)
+    except Exception:
+        pass
+    return 0.0
 
 
-def refresh_container_list():
-    """Runs in background — detects new/removed containers and updates cache."""
+def calculate_memory(stats: dict) -> tuple[float, float]:
+    try:
+        memory_stats = stats.get("memory_stats", {})
+        usage = memory_stats.get("usage", 0)
+        cache = memory_stats.get("stats", {}).get("cache", 0)
+        limit = memory_stats.get("limit") or 1
+        adjusted_usage = max(usage - cache, 0)
+        return (
+            round((adjusted_usage / limit) * 100, 1),
+            round(adjusted_usage / BYTES_IN_GIB, 2),
+        )
+    except Exception:
+        return 0.0, 0.0
+
+
+def sample_container(container) -> dict:
+    previous = container_stats_cache.get(container.name, {})
+    data = {
+        "name": container.name,
+        "status": container.status,
+        "cpu": previous.get("cpu", 0.0),
+        "mem_percent": previous.get("mem_percent", 0.0),
+        "mem_gb": previous.get("mem_gb", 0.0),
+        "ports": parse_ports(container),
+        "image": image_name(container),
+    }
+
+    if container.status != "running":
+        data["cpu"] = 0.0
+        data["mem_percent"] = 0.0
+        data["mem_gb"] = 0.0
+        return data
+
+    try:
+        stats = container.stats(stream=False, decode=True)
+        data["cpu"] = calculate_cpu_percent(stats)
+        data["mem_percent"], data["mem_gb"] = calculate_memory(stats)
+    except Exception as exc:
+        data["error"] = str(exc)
+
+    return data
+
+
+def poll_containers():
+    if docker_client is None:
+        return
+
     while True:
-        time.sleep(5)
         try:
-            current = {c.name: c for c in docker_client.containers.list(all=True)}
-
+            containers = docker_client.containers.list(all=True)
+            next_cache = {container.name: sample_container(container) for container in containers}
             with cache_lock:
-                cached_names = set(container_stats_cache.keys())
-
-            # Add new containers
-            for name, c in current.items():
-                if name not in cached_names:
-                    with cache_lock:
-                        container_stats_cache[name] = {
-                            'name': c.name,
-                            'status': c.status,
-                            'cpu': 0.0,
-                            'mem_percent': 0.0,
-                            'mem_gb': 0.0,
-                            'ports': parse_ports(c),
-                            'image': c.image.tags[0] if c.image.tags else 'unknown',
-                        }
-
-                    if c.status == 'running':
-                        t = threading.Thread(target=watch_container, args=(c,), daemon=True)
-                        t.start()
-
-            # Remove deleted containers
-            for name in cached_names:
-                if name not in current:
-                    with cache_lock:
-                        del container_stats_cache[name]
-
-            # Update statuses
-            for name, c in current.items():
-                with cache_lock:
-                    if name in container_stats_cache:
-                        container_stats_cache[name]['status'] = c.status
-
-        except Exception as e:
-            print(f"Refresh error: {e}")
+                container_stats_cache.clear()
+                container_stats_cache.update(next_cache)
+        except Exception as exc:
+            print(f"Container poll error: {exc}", flush=True)
+        time.sleep(CONTAINER_REFRESH_SECONDS)
 
 
 def get_containers():
     with cache_lock:
         containers = list(container_stats_cache.values())
-    containers.sort(key=lambda x: x['name'].lower())
+    containers.sort(key=lambda item: item["name"].lower())
     return containers
 
 
 def get_stats():
     mem = psutil.virtual_memory()
-    disk = psutil.disk_usage('/')
+    disk = psutil.disk_usage("/")
 
     return {
-        'cpu': {
-            'percent': psutil.cpu_percent(interval=None),
-            'temp': get_cpu_temp(),
+        "cpu": {
+            "percent": psutil.cpu_percent(interval=None),
+            "temp": get_cpu_temp(),
         },
-        'mem': {
-            'percent': round(mem.percent, 1),
-            'used': round(mem.used / (1024 ** 3), 1),
-            'total': round(mem.total / (1024 ** 3), 1),
+        "mem": {
+            "percent": round(mem.percent, 1),
+            "used": round(mem.used / BYTES_IN_GIB, 1),
+            "total": round(mem.total / BYTES_IN_GIB, 1),
         },
-        'disk': {
-            'percent': round(disk.percent, 1),
-            'used': round(disk.used / (1024 ** 3), 1),
-            'total': round(disk.total / (1024 ** 3), 1),
+        "disk": {
+            "percent": round(disk.percent, 1),
+            "used": round(disk.used / BYTES_IN_GIB, 1),
+            "total": round(disk.total / BYTES_IN_GIB, 1),
         },
-        'containers': get_containers(),
+        "containers": get_containers(),
     }
 
 
-@app.route('/stream')
+@app.route("/stream")
 def stream():
     def generate():
         psutil.cpu_percent(interval=None)
         while True:
             try:
-                data = get_stats()
-                yield f"data: {json.dumps(data)}\n\n"
-            except Exception as e:
-                yield f"data: {json.dumps({'error': str(e)})}\n\n"
-            time.sleep(1)
+                yield f"data: {json.dumps(get_stats())}\n\n"
+            except Exception as exc:
+                yield f"data: {json.dumps({'error': str(exc)})}\n\n"
+            time.sleep(STATS_INTERVAL_SECONDS)
 
     return Response(
         generate(),
-        mimetype='text/event-stream',
+        mimetype="text/event-stream",
         headers={
-            'Cache-Control': 'no-cache',
-            'X-Accel-Buffering': 'no',
-            'Connection': 'keep-alive',
-        }
+            "Cache-Control": "no-cache",
+            "X-Accel-Buffering": "no",
+            "Connection": "keep-alive",
+        },
     )
 
 
-@app.route('/health')
+@app.route("/health")
 def health():
-    return {'status': 'ok'}
+    return {"status": "ok", "docker": docker_client is not None}
 
 
 @app.errorhandler(404)
-def not_found(e):
-    return app.send_static_file('index.html')
+def not_found(_error):
+    return app.send_static_file("index.html")
 
 
-# ✅ Start background threads before first request
-start_watching_containers()
-threading.Thread(target=refresh_container_list, daemon=True).start()
+threading.Thread(target=poll_containers, daemon=True).start()
 
-if __name__ == '__main__':
-    app.run(host='***.0.0', port=80)
+if __name__ == "__main__":
+    app.run(host="0.0.0.0", port=80)

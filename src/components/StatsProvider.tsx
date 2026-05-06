@@ -6,40 +6,51 @@ interface StatsProviderProps {
   className?: string;
 }
 
-export function StatsProvider({ children, className }: StatsProviderProps) {
-const [stats, setStats] = useState({
+interface Stats {
+  cpu: { percent: number; temp: number | null };
+  mem: { percent: number; used: number; total: number };
+  disk: { percent: number; used: number; total: number };
+  containers: unknown[];
+}
+
+const initialStats: Stats = {
   cpu: { percent: 0, temp: null },
   mem: { percent: 0, used: 0, total: 0 },
   disk: { percent: 0, used: 0, total: 0 },
   containers: [],
-});
+};
+
+export function StatsProvider({ children, className }: StatsProviderProps) {
+  const [stats, setStats] = useState<Stats>(initialStats);
   const [connected, setConnected] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     const es = new EventSource(`${window.location.origin}/stream`);
-    
-    es.onopen = () => setConnected(true);
-    
+
+    es.onopen = () => {
+      setConnected(true);
+      setError(null);
+    };
+
     es.onmessage = (e) => {
       try {
         setStats(JSON.parse(e.data));
-      } catch {}
+        setError(null);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "Unable to parse stats");
+      }
     };
 
     es.onerror = () => {
       setConnected(false);
-      es.close();
-      // retry after 3 seconds
-      setTimeout(() => {
-        window.location.reload();
-      }, 3000);
     };
 
     return () => es.close();
   }, []);
 
   return (
-    <DataProvider name="stats" data={{ ...stats, connected }}>
+    <DataProvider name="stats" data={{ ...stats, connected, error }}>
       <div className={className ?? ""}>{children}</div>
     </DataProvider>
   );
