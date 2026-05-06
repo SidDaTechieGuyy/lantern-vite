@@ -45,7 +45,7 @@ def get_cpu_temp():
     return None
 
 
-def parse_ports(container) -> list[dict[str, str]]:
+def parse_ports(container) -> list[str]:
     seen = set()
     ports = []
     raw_ports = container.attrs.get("NetworkSettings", {}).get("Ports") or {}
@@ -57,35 +57,17 @@ def parse_ports(container) -> list[dict[str, str]]:
         if bindings:
             for binding in bindings:
                 host_port = binding.get("HostPort") or container_value
-                key = (host_port, container_value, protocol)
+                key = f"{host_port}/{protocol}"
                 if key in seen:
                     continue
                 seen.add(key)
-                ports.append(
-                    {
-                        "host": host_port,
-                        "container": container_value,
-                        "protocol": protocol,
-                        "label": (
-                            f"{host_port}/{protocol}"
-                            if host_port == container_value
-                            else f"{host_port}->{container_value}/{protocol}"
-                        ),
-                    }
-                )
+                ports.append(key)
         else:
-            key = (container_value, container_value, protocol)
+            key = f"{container_value}/{protocol}"
             if key in seen:
                 continue
             seen.add(key)
-            ports.append(
-                {
-                    "host": container_value,
-                    "container": container_value,
-                    "protocol": protocol,
-                    "label": f"{container_value}/{protocol}",
-                }
-            )
+            ports.append(key)
 
     return ports
 

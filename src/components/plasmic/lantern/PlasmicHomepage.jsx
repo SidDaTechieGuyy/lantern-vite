@@ -741,12 +741,17 @@ function PlasmicHomepage__RenderFunc(props) {
                                           const actionArgs = {
                                             destination: (() => {
                                               try {
+                                                const port =
+                                                  typeof currentItem ===
+                                                  "string"
+                                                    ? currentItem.split("/")[0]
+                                                    : currentItem?.host;
                                                 return (
                                                   window.location.protocol +
                                                   "//" +
                                                   window.location.hostname +
                                                   ":" +
-                                                  currentItem.host
+                                                  port
                                                 );
                                               } catch (e) {
                                                 if (
